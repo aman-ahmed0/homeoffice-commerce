@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/aman-ahmed0/gcp_ecommerce_platform.git
+    repoURL: https://github.com/aman-ahmed0/homeoffice-commerce.git
     targetRevision: develop
     path: kubernetes
   destination:
