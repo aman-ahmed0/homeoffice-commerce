@@ -101,5 +101,9 @@ def get_product(product_id):
     else:
         abort(404)
 
+@app.route('/healthz')
+def healthz():
+    return jsonify(status="ok"), 200
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
