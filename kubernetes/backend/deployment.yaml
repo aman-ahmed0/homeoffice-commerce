@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
         - name: backend
-          image: ahmedaman0/homeoffice-backend:latest
-          imagePullPolicy: IfNotPresent
+          image: proj-backend:latest
+          imagePullPolicy: Never
           ports:
             - containerPort: 5000
           env:
