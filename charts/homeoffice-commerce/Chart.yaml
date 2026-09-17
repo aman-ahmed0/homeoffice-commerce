@@ -1,0 +1,5 @@
+apiVersion: v2
+name: homeoffice-commerce
+description: Helm chart for the HomeOffice Commerce application
+type: application
+version: 0.1.0
