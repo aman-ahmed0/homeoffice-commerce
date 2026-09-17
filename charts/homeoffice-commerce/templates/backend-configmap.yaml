@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: backend
+data:
+{{- range $key, $value := .Values.backend.config }}
+  {{ $key }}: {{ $value | quote }}
+{{- end }}

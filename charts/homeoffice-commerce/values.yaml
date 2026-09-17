@@ -10,6 +10,11 @@ backend:
     port: 5000
     targetPort: 5000
 
+  config:
+    DB_HOST: "db"
+    DB_PORT: "5432"
+    FLASK_ENV: "development"
+
   resources:
     requests:
       cpu: "100m"
