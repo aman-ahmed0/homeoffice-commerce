@@ -22,3 +22,16 @@ backend:
     limits:
       cpu: "500m"
       memory: "512Mi"
+
+frontend:
+  replicas: 1
+
+  image:
+    repository: proj-frontend
+    tag: latest
+    pullPolicy: Never
+
+  service:
+    type: LoadBalancer
+    port: 80
+    targetPort: 3000
