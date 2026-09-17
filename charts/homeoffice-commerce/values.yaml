@@ -35,3 +35,9 @@ frontend:
     type: LoadBalancer
     port: 80
     targetPort: 3000
+
+database:
+  image:
+    repository: postgres
+    tag: "15"
+    pullPolicy: Never
