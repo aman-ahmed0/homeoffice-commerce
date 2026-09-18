@@ -3,7 +3,7 @@ backend:
 
   image:
     repository: proj-backend
-    tag: health-v1
+    tag: prod-v2
     pullPolicy: Never
 
   service:
