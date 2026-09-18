@@ -1,20 +1,28 @@
-# Start from Node.js 20 (slim version keeps it small)
-FROM node:20-slim
+FROM node:20-slim AS build
 
-# Create and set working directory inside the container
 WORKDIR /app
 
-# Copy package files first (better caching)
-COPY package*.json ./
+COPY package.json package-lock.json ./
+RUN npm ci
 
-# Install dependencies
-RUN npm install
-
-# Copy the rest of the frontend source code
 COPY . .
+RUN npm run build
 
-# Next.js dev server uses port 3000
+FROM node:20-slim AS runtime
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+COPY --from=build --chown=node:node /app/.next ./.next
+COPY --from=build /app/public ./public
+COPY --from=build /app/next.config.mjs ./next.config.mjs
+
+USER node
+
 EXPOSE 3000
 
-# Start the development server, binding to all network interfaces
-CMD ["npm", "run", "dev", "--", "-H", "0.0.0.0"]
+CMD ["npm", "run", "start", "--", "-H", "0.0.0.0"]

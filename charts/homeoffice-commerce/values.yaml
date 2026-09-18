@@ -28,7 +28,7 @@ frontend:
 
   image:
     repository: proj-frontend
-    tag: latest
+    tag: prod-v2
     pullPolicy: Never
 
   service:
