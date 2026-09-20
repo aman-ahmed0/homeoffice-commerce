@@ -41,3 +41,8 @@ database:
     repository: postgres
     tag: "15"
     pullPolicy: Never
+
+  storage:
+    size: 1Gi
+    className: ""
+    createClass: false

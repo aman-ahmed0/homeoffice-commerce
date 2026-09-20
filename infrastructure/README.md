@@ -1,368 +1,94 @@
-# Infrastructure as Code – Terraform (GCP)
+# Azure infrastructure
 
-Terraform modules that provision the cloud foundation for HomeOffice Hub on Google Cloud Platform.
+Terraform configuration for the HomeOffice Hub Azure showcase.
 
----
+This directory replaces the previous GCP infrastructure configuration.
+No GCP provider is required for the current deployment.
 
-## Architecture
+## Resources
 
-```text
-┌────────────────────────────────────────────────────────────┐
-│                         Terraform                          │
-│                                                            │
-│   ┌────────────┐   ┌────────────┐   ┌──────────────────┐   │
-│   │    VPC     │   │    GKE     │   │ Artifact Registry│   │
-│   │  Network   │   │  Cluster   │   │   Docker Repo    │   │
-│   │ + Subnet   │   │ + NodePool │   │                  │   │
-│   └────────────┘   └────────────┘   └──────────────────┘   │
-│                                                            │
-│      All resources are created in a single GCP project.    │
-└────────────────────────────────────────────────────────────┘
-```
+- Project resource group: `rg-homeoffice-dev`
+- Azure Container Registry: Basic tier
+- AKS: `aks-homeoffice-dev`, Central India, Kubernetes 1.36.3
+- Two Ubuntu 24.04 worker nodes using Standard_D4as_v5
+- Managed OS disks, 64 GiB per node
+- Registry-scoped AcrPull assignment for the kubelet identity
+- Cluster-scoped Kubernetes administration assignment for the designated user
 
----
+AKS manages supporting resources in `rg-homeoffice-dev-nodes`.
+Do not independently create that node resource group.
 
-## Overview
+## Files
 
-This Terraform configuration provisions:
+| File | Purpose |
+| --- | --- |
+| `providers.tf` | AzureRM provider version and subscription configuration |
+| `variables.tf` | Shared inputs |
+| `main.tf` | Resource group, registry, and registry output |
+| `aks.tf` | AKS, access assignments, and cluster outputs |
+| `.terraform.lock.hcl` | Committed provider selection and checksums |
+| `terraform.tfvars` | Local input values, excluded from Git |
 
-* Custom VPC network
-* Dedicated subnet
-* Google Kubernetes Engine (GKE) cluster
-* Managed node pool
-* Artifact Registry Docker repository
+Required local inputs are `subscription_id`, `aks_admin_object_id`,
+and `admin_ipv4_cidr`. The last value is the administrator's public IPv4
+address with `/32`.
 
-The infrastructure serves as the cloud foundation for deploying the HomeOffice Hub Kubernetes workloads.
+Use an account authorized to create resources and role assignments.
+Azure service-provider registration is managed explicitly, not automatically.
 
----
+## Preview changes
 
-## Prerequisites
-
-Before using Terraform, ensure you have:
-
-### Google Cloud
-
-* A Google Cloud project
-* Billing enabled on the project
-* Sufficient permissions to create infrastructure
-
-### Local Tools
-
-* Terraform >= 1.5
-* Google Cloud SDK (`gcloud`)
-* `kubectl`
-
----
-
-## How to Use
-
-### 1. Authenticate with Google Cloud
+From the repository root:
 
 ```bash
-gcloud auth application-default login
+terraform -chdir=infrastructure init
+terraform -chdir=infrastructure fmt
+terraform -chdir=infrastructure validate
+terraform -chdir=infrastructure plan
 ```
 
-A browser window will open requesting authentication and authorization.
+Review costs and proposed changes before applying. Applying a saved plan
+executes it without a further approval prompt.
 
-After successful login, Terraform can use your Google Cloud credentials.
+## State and credentials
 
-### 2. Configure Variables
+Terraform state is currently local. It is excluded from Git, but must not be
+deleted or treated as disposable. Protected remote state is planned.
 
-Create a file named:
+Do not commit state, saved plans, local variable files, kubeconfig files,
+tokens, or database credentials.
 
-```text
-terraform.tfvars
-```
+The application's database Secret is created separately in Kubernetes.
+Changing that Secret alone does not rotate an existing database password.
 
-inside the `infrastructure/` directory.
+## Pause and resume
 
-Example:
-
-```hcl
-project_id = "your-gcp-project-id"
-```
-
-Optional overrides:
-
-```hcl
-project_id   = "your-gcp-project-id"
-region       = "us-central1"
-cluster_name = "homeoffice-cluster"
-```
-
-### 3. Initialize Terraform
+Stop compute between work sessions:
 
 ```bash
-cd infrastructure
-
-terraform init
+az aks stop --resource-group rg-homeoffice-dev --name aks-homeoffice-dev
+az aks show --resource-group rg-homeoffice-dev --name aks-homeoffice-dev \
+  --query powerState.code --output tsv
 ```
 
-This command:
+Confirm `Stopped`. Retained storage, registry, and networking can still cost money.
 
-* Downloads required providers
-* Initializes modules
-* Prepares the working directory
-
-### 4. Review the Execution Plan
+Resume:
 
 ```bash
-terraform plan
+az aks start --resource-group rg-homeoffice-dev --name aks-homeoffice-dev
 ```
 
-Terraform will display all resources that will be created without making changes.
+Do not recreate the database Secret or reapply an old Terraform plan to resume.
 
-Review the plan carefully before proceeding.
+If the administrator's public IP changes, update the API allowlist through
+a reviewed Terraform change.
 
-### 5. Apply the Configuration
+## Removal
 
-```bash
-terraform apply
-```
+A full teardown is destructive and different from stopping AKS.
+Review `terraform -chdir=infrastructure plan -destroy` and preserve any
+required database data before approving deletion.
 
-When prompted:
-
-```text
-Do you want to perform these actions?
-```
-
-Type:
-
-```text
-yes
-```
-
-Terraform will provision:
-
-* VPC network
-* Subnet
-* GKE cluster
-* Node pool
-* Artifact Registry repository
-
-### 6. Configure kubectl
-
-After deployment completes, retrieve cluster credentials:
-
-```bash
-gcloud container clusters get-credentials \
-  $(terraform output -raw cluster_name) \
-  --region $(terraform output -raw cluster_location)
-```
-
-Verify connectivity:
-
-```bash
-kubectl get nodes
-```
-
-Your Kubernetes cluster is now ready for application deployment.
-
-### 7. Deploy HomeOffice Hub
-
-After configuring `kubectl`:
-
-```bash
-kubectl apply -f ../kubernetes/namespace.yaml
-kubectl apply -f ../kubernetes/database/
-kubectl apply -f ../kubernetes/backend/
-kubectl apply -f ../kubernetes/frontend/
-kubectl apply -f ../kubernetes/monitoring/
-```
-
-### 8. Destroy Infrastructure
-
-To avoid ongoing cloud charges:
-
-```bash
-terraform destroy
-```
-
-Confirm when prompted:
-
-```text
-yes
-```
-
-Terraform will remove all managed resources.
-
----
-
-## Module Details
-
-### VPC Module
-
-Creates the networking foundation for the cluster.
-
-#### Resources
-
-| Resource   | Value               |
-| ---------- | ------------------- |
-| Network    | `homeoffice-vpc`    |
-| Subnet     | `homeoffice-subnet` |
-| CIDR Range | `10.0.0.0/16`       |
-
-#### Purpose
-
-* Isolated networking environment
-* Private communication between resources
-* Foundation for GKE
-
----
-
-### GKE Module
-
-Creates a regional Google Kubernetes Engine cluster.
-
-#### Default Configuration
-
-| Setting      | Value                |
-| ------------ | -------------------- |
-| Cluster Name | `homeoffice-cluster` |
-| Cluster Type | Regional             |
-| Node Count   | 2                    |
-| Machine Type | `e2-medium`          |
-| Disk Size    | 50 GB                |
-
-#### Features
-
-* Managed Kubernetes control plane
-* Auto-healing nodes
-* Auto-upgrade support
-* Regional high availability
-
----
-
-### Artifact Registry Module
-
-Creates a Docker repository for application images.
-
-#### Configuration
-
-| Setting    | Value             |
-| ---------- | ----------------- |
-| Repository | `homeoffice-repo` |
-| Format     | `DOCKER`          |
-| Service    | Artifact Registry |
-
-#### Registry URL
-
-```text
-{region}-docker.pkg.dev/{project_id}/homeoffice-repo
-```
-
-Example:
-
-```text
-us-central1-docker.pkg.dev/my-project/homeoffice-repo
-```
-
----
-
-## Outputs
-
-After a successful deployment, Terraform provides useful outputs.
-
-| Output                  | Description                |
-| ----------------------- | -------------------------- |
-| `cluster_name`          | Name of the GKE cluster    |
-| `cluster_location`      | Region hosting the cluster |
-| `cluster_endpoint`      | Kubernetes API endpoint    |
-| `artifact_registry_url` | Docker registry URL        |
-
-### View Outputs
-
-```bash
-terraform output
-```
-
-Retrieve a specific value:
-
-```bash
-terraform output -raw cluster_name
-```
-
----
-
-## State Management
-
-By default, Terraform stores state locally:
-
-```text
-terraform.tfstate
-```
-
-This is suitable for learning and individual development.
-
-For team use, consider configuring a Google Cloud Storage backend to enable shared state, state locking, and version history.
-
----
-
-## Customization
-
-The GKE configuration can be adjusted in:
-
-```text
-modules/gke/main.tf
-```
-
-Common settings:
-
-| Variable       | Purpose                 |
-| -------------- | ----------------------- |
-| `machine_type` | VM size                 |
-| `node_count`   | Number of worker nodes  |
-| `disk_size_gb` | Node disk capacity      |
-| `cluster_name` | Kubernetes cluster name |
-| `region`       | Deployment region       |
-
----
-
-## Security Notes
-
-### OAuth Scopes
-
-The node pool uses:
-
-```hcl
-oauth_scopes = ["cloud-platform"]
-```
-
-This allows workloads running inside the cluster to access Google Cloud APIs when appropriately authorized.
-
-### Production Considerations
-
-When moving to production, evaluate:
-
-* Workload Identity
-* Private clusters
-* Network access restrictions
-* Secrets management outside Terraform state
-* Binary Authorization
-* IAM least-privilege principles
-
----
-
-## Cost Considerations
-
-Resources that generate charges include:
-
-* GKE cluster nodes
-* Persistent disks
-* Artifact Registry storage
-* Network egress
-
-Always destroy unused environments:
-
-```bash
-terraform destroy
-```
-
----
-
-## Related Documentation
-
-* Root Project Documentation: `../README.md`
-* Kubernetes Documentation: `../kubernetes/README.md`
-* Frontend Documentation: `../frontend/README.md`
-* Backend Documentation: `../backend/README.md`
+Helm-managed disks and other supporting resources must be accounted for
+during teardown; the Terraform resource count is not a complete disk inventory.

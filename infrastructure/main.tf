@@ -1,24 +1,25 @@
-# All modules receive the project ID and region from variables.
-# VPC network
-module "vpc" {
-  source     = "./modules/vpc"
-  project_id = var.project_id
-  region     = var.region
+resource "azurerm_resource_group" "project" {
+  name     = "rg-homeoffice-dev"
+  location = var.location
+
+  tags = {
+    project     = "homeoffice-commerce"
+    environment = "dev"
+    purpose     = "portfolio"
+  }
 }
 
-# GKE cluster
-module "gke" {
-  source        = "./modules/gke"
-  project_id    = var.project_id
-  region        = var.region
-  cluster_name  = var.cluster_name
-  network       = module.vpc.network_name
-  subnetwork    = module.vpc.subnet_name
+resource "azurerm_container_registry" "images" {
+  name                = "hocommerce${substr(var.subscription_id, 0, 8)}"
+  resource_group_name = azurerm_resource_group.project.name
+  location            = azurerm_resource_group.project.location
+  sku                 = "Basic"
+  admin_enabled       = false
+
+  tags = azurerm_resource_group.project.tags
 }
 
-# Artifact Registry repository for Docker images // (later used by CI/CD).
-module "artifact_registry" {
-  source     = "./modules/artifact-registry"
-  project_id = var.project_id
-  region     = var.region
+output "registry_login_server" {
+  description = "Registry address used when tagging and pushing images."
+  value       = azurerm_container_registry.images.login_server
 }

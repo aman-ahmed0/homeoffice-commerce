@@ -1,14 +1,17 @@
 terraform {
-  required_version = ">= 1.5"
+  required_version = ">= 1.5, < 2.0"
+
   required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "~> 5.0"
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "= 5.6.0"
     }
   }
 }
 
-provider "google" {
-  project = var.project_id
-  region  = var.region
+provider "azurerm" {
+  features {}
+
+  subscription_id                 = var.subscription_id
+  resource_provider_registrations = "none"
 }

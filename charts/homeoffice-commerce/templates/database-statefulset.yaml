@@ -45,6 +45,9 @@ spec:
         name: postgres-data
       spec:
         accessModes: ["ReadWriteOnce"]
+        {{- with .Values.database.storage.className }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
         resources:
           requests:
-            storage: 1Gi
+            storage: {{ .Values.database.storage.size | quote }}

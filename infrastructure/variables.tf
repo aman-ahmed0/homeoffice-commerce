@@ -1,16 +1,23 @@
-variable "project_id" {
-  description = "The GCP project ID"
+variable "subscription_id" {
+  description = "Azure subscription used for this showcase project."
   type        = string
 }
 
-variable "region" {
-  description = "The GCP region for resources"
+variable "location" {
+  description = "Azure region for the project resources."
   type        = string
-  default     = "us-central1"
+  default     = "centralindia"
 }
 
-variable "cluster_name" {
-  description = "Name of the GKE cluster"
+variable "admin_ipv4_cidr" {
+  description = "Public IPv4 address allowed to administer AKS, with /32."
   type        = string
-  default     = "homeoffice-cluster"
+
+  validation {
+    condition = (
+      can(cidrnetmask(var.admin_ipv4_cidr)) &&
+      endswith(var.admin_ipv4_cidr, "/32")
+    )
+    error_message = "Provide a valid single IPv4 address with /32."
+  }
 }

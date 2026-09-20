@@ -1,0 +1,25 @@
+backend:
+  image:
+    repository: hocommerce8fd771c6.azurecr.io/proj-backend
+    tag: prod-v2
+    pullPolicy: IfNotPresent
+
+  config:
+    FLASK_ENV: "production"
+
+frontend:
+  image:
+    repository: hocommerce8fd771c6.azurecr.io/proj-frontend
+    tag: prod-v2
+    pullPolicy: IfNotPresent
+
+database:
+  image:
+    repository: postgres
+    tag: "15"
+    pullPolicy: IfNotPresent
+
+  storage:
+    size: 32Gi
+    className: homeoffice-azure-standard-ssd
+    createClass: true
