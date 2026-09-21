@@ -122,6 +122,19 @@ Budget alerts are notifications, not automatic spending cutoffs.
 - One backend restart was observed during initial deployment; its cause
   has not yet been established.
 
+## Continuous integration
+
+The CI workflow checks Terraform formatting and validation, lints and renders
+both Helm configurations, checks for disallowed tracked local files, scans
+the current checkout for secrets, and builds/scans both application images.
+
+High and Critical image vulnerabilities fail CI, including findings without
+a published fix. Findings require review; a passing scan is not a security
+certification.
+
+CI does not currently publish images, authenticate to Azure, or deploy.
+Workflow implementation is on feature/ci-cd; the first run is pending.
+
 ## Roadmap
 
 1. **CI/CD:** GitHub Actions, image build and scanning, ACR publishing,

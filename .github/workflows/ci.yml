@@ -1,0 +1,180 @@
+name: CI
+
+on:
+  push:
+    branches: [main, feature/ci-cd]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  source:
+    name: Source safeguards
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Reject tracked local credential and state files
+        run: |
+          python3 - <<'PY'
+          import fnmatch
+          import subprocess
+          import sys
+          from pathlib import PurePosixPath
+
+          patterns = (
+              "*.tfstate", "*.tfstate.*", "*.tfvars", "*.tfvars.json",
+              "*.tfplan", "kubeconfig", "kubeconfig.*", "*.kubeconfig",
+              "homeoffice-azure.config", ".env", ".env.*",
+          )
+          files = subprocess.check_output(
+              ["git", "ls-files", "-z"]
+          ).decode().split("\0")
+          forbidden = []
+          for filename in filter(None, files):
+              path = PurePosixPath(filename)
+              if path.name in (".env.example", ".env.sample"):
+                  continue
+              if (
+                  ".terraform" in path.parts
+                  or ".kube" in path.parts
+                  or any(fnmatch.fnmatchcase(path.name, p) for p in patterns)
+              ):
+                  forbidden.append(filename)
+
+          for filename in forbidden:
+              print(f"Disallowed tracked file: {filename}")
+          sys.exit(1 if forbidden else 0)
+          PY
+
+      - name: Scan current files for secrets
+        id: secrets
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.70.0
+          scan-type: fs
+          scan-ref: .
+          scanners: secret
+          format: json
+          output: ${{ runner.temp }}/secret-scan.json
+          exit-code: "1"
+          timeout: 10m
+          skip-dirs: .git
+
+      - name: Report finding locations without secret values
+        if: ${{ failure() && steps.secrets.outcome == 'failure' }}
+        env:
+          REPORT_PATH: ${{ runner.temp }}/secret-scan.json
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+
+          with open(os.environ["REPORT_PATH"], encoding="utf-8") as report:
+              data = json.load(report)
+
+          for result in data.get("Results", []):
+              for finding in result.get("Secrets", []):
+                  print(
+                      f"{result['Target']}:{finding.get('StartLine', '?')} "
+                      f"rule={finding.get('RuleID', 'unknown')} "
+                      f"severity={finding.get('Severity', 'unknown')}"
+                  )
+          PY
+
+  configuration:
+    name: Terraform and Helm
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.16.3
+          terraform_wrapper: false
+
+      - name: Check Terraform formatting
+        run: terraform -chdir=infrastructure fmt -check -recursive
+
+      - name: Initialize providers without a state backend
+        run: terraform -chdir=infrastructure init -backend=false -input=false -lockfile=readonly
+
+      - name: Validate Terraform
+        run: terraform -chdir=infrastructure validate -no-color
+
+      - name: Install Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.3.0
+
+      - name: Check local and Azure chart configurations
+        run: |
+          helm lint ./charts/homeoffice-commerce
+          helm lint ./charts/homeoffice-commerce \
+            -f ./charts/homeoffice-commerce/values-azure.yaml
+          helm template homeoffice ./charts/homeoffice-commerce \
+            --namespace ecommerce > /dev/null
+          helm template homeoffice ./charts/homeoffice-commerce \
+            --namespace ecommerce \
+            -f ./charts/homeoffice-commerce/values-azure.yaml > /dev/null
+
+  images:
+    name: Build and scan (${{ matrix.component }})
+    needs: source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [backend, frontend]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build image
+        env:
+          COMPONENT: ${{ matrix.component }}
+        run: |
+          docker build --pull \
+            --tag "homeoffice-${COMPONENT}:${GITHUB_SHA}" \
+            "./${COMPONENT}"
+
+      - name: Scan image vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.70.0
+          scan-type: image
+          image-ref: homeoffice-${{ matrix.component }}:${{ github.sha }}
+          scanners: vuln
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: false
+          exit-code: "1"
+          format: table
+          timeout: 10m
