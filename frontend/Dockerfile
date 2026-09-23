@@ -1,4 +1,4 @@
-FROM node:20-slim AS build
+FROM node:24.21.0-trixie-slim AS build
 
 WORKDIR /app
 
@@ -8,21 +8,27 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM node:20-slim AS runtime
+FROM node:24.21.0-trixie-slim AS dependencies
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:bb6b03d81066993293a10feda7250e8e1cc034035fe9b61cfceededa7c8bf04d AS runtime
 
 WORKDIR /app
 
 ENV NODE_ENV=production
 
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+COPY --from=dependencies --chown=65532:65532 /app/node_modules ./node_modules
+COPY --from=dependencies --chown=65532:65532 /app/package.json ./package.json
+COPY --from=build --chown=65532:65532 /app/.next ./.next
+COPY --from=build --chown=65532:65532 /app/public ./public
+COPY --from=build --chown=65532:65532 /app/next.config.mjs ./next.config.mjs
 
-COPY --from=build --chown=node:node /app/.next ./.next
-COPY --from=build /app/public ./public
-COPY --from=build /app/next.config.mjs ./next.config.mjs
-
-USER node
+USER 65532:65532
 
 EXPOSE 3000
 
-CMD ["npm", "run", "start", "--", "-H", "0.0.0.0"]
+CMD ["node_modules/next/dist/bin/next", "start", "-H", "0.0.0.0"]
