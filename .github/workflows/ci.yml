@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, feature/ci-cd]
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -178,3 +178,23 @@ jobs:
           exit-code: "1"
           format: table
           timeout: 10m
+
+  azure-login:
+    name: Azure login (OIDC)
+    if: ${{ github.ref == 'refs/heads/main' }}
+    needs: [source, configuration, images]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Sign in to Azure without a stored password
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Show the signed-in subscription
+        run: az account show --query "{subscription:name, type:user.type}" -o table
