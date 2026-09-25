@@ -1,7 +1,7 @@
-variable "github_repository" {
-  description = "GitHub repository allowed to sign in to Azure from Actions, as owner/name."
+variable "github_oidc_subject_repo" {
+  description = "Repository part of the GitHub OIDC subject, in GitHub's immutable owner@id/repo@id format."
   type        = string
-  default     = "aman-ahmed0/homeoffice-commerce"
+  default     = "aman-ahmed0@128940419/homeoffice-commerce@1261251392"
 }
 
 resource "azurerm_user_assigned_identity" "github_ci" {
@@ -17,7 +17,7 @@ resource "azurerm_federated_identity_credential" "github_main" {
   user_assigned_identity_id = azurerm_user_assigned_identity.github_ci.id
   issuer                    = "https://token.actions.githubusercontent.com"
   audience                  = ["api://AzureADTokenExchange"]
-  subject                   = "repo:${var.github_repository}:ref:refs/heads/main"
+  subject                   = "repo:${var.github_oidc_subject_repo}:ref:refs/heads/main"
 }
 
 resource "azurerm_role_assignment" "github_ci_acr_push" {
