@@ -35,7 +35,7 @@ export default function HomePage() {
             <span className="text-accent-400">Home Office</span>
           </h1>
           <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
-            Premium work-from-home essentials designed for productivity and comfort.
+            Premium work-from-home essentials designed for productivity and comfort. Shipped by GitOps to Azure.
           </p>
           <Link href="#products" className="inline-block bg-accent-500 hover:bg-accent-600 text-white font-semibold py-3 px-8 rounded-lg transition-colors">
             Shop Now
