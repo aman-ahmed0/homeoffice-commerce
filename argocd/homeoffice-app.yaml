@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: homeoffice
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/aman-ahmed0/homeoffice-commerce.git
+    targetRevision: main
+    path: charts/homeoffice-commerce
+    helm:
+      releaseName: homeoffice
+      valueFiles:
+        - values-azure.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ecommerce
