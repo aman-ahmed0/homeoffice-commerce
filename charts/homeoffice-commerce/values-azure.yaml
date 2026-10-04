@@ -1,7 +1,7 @@
 backend:
   image:
     repository: hocommerce8fd771c6.azurecr.io/proj-backend
-    tag: "7f6d37086b6b0634683ffd051d8a231823395dfe"
+    tag: "230cff022416e0bddd61bb77b90d8ec99e0b3686"
     pullPolicy: IfNotPresent
 
   config:
@@ -10,7 +10,7 @@ backend:
 frontend:
   image:
     repository: hocommerce8fd771c6.azurecr.io/proj-frontend
-    tag: "7f6d37086b6b0634683ffd051d8a231823395dfe"
+    tag: "230cff022416e0bddd61bb77b90d8ec99e0b3686"
     pullPolicy: IfNotPresent
 
 database:
